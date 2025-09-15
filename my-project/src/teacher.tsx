@@ -1,216 +1,205 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 interface Student {
-  id: number;
   name: string;
-  rollNo: string;
-  className: string;
-  photoUrl: string;
-  rgbData?: number[][][];
+  roll: string;
+  photo: string;
 }
 
-// Demo data (only used if no localStorage yet)
-const demoStudents: Student[] = [
-  {
-    id: 1,
-    name: "Aaditya Kumar",
-    rollNo: "101",
-    className: "12th-B",
-    photoUrl: "faces/Aaditya_kumar.jpg",
-  },
-  {
-    id: 2,
-    name: "Ashri Singh",
-    rollNo: "102",
-    className: "12th-B",
-    photoUrl: "faces/Ashri_singh.jpg",
-  },
-  {
-    id: 3,
-    name: "Shilpi",
-    rollNo: "103",
-    className: "12th-B",
-    photoUrl: "faces/Shilpi.jpg",
-  },
-  {
-    id: 4,
-    name: "Rohan Verma",
-    rollNo: "104",
-    className: "12th-B",
-    photoUrl: "faces/rohan_verma.jpg",
-  },
-];
-
-// Convert image into RGB array
-async function fetchImageRGB(path: string): Promise<number[][][]> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = path;
-
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject("Canvas not supported");
-
-      ctx.drawImage(img, 0, 0);
-      const { data, width, height } = ctx.getImageData(0, 0, img.width, img.height);
-
-      const rgb: number[][][] = [];
-      for (let y = 0; y < height; y++) {
-        const row: number[][] = [];
-        for (let x = 0; x < width; x++) {
-          const idx = (y * width + x) * 4;
-          row.push([data[idx], data[idx + 1], data[idx + 2]]);
-        }
-        rgb.push(row);
-      }
-      resolve(rgb);
-    };
-
-    img.onerror = reject;
-  });
+interface ClassData {
+  name: string;
+  students: Student[];
 }
 
-export default function TeacherDashboard() {
-  const [students, setStudents] = useState<Student[]>(() => {
-    const raw = localStorage.getItem("students");
-    return raw ? JSON.parse(raw) : demoStudents;
-  });
+const TeacherDashboard: React.FC = () => {
+  const [classes, setClasses] = useState<ClassData[]>([
+    {
+      name: "12th-A",
+      students: [
+        { name: "Rohan", roll: "1", photo: "faces/rohan_verma.jpg" },
+        { name: "Ashri", roll: "2", photo: "faces/Ashri_singh.jpg" },
+        { name: "Shilpi", roll: "3", photo: "faces/Shilpi.jpg" },
+        { name: "Aaditya", roll: "4", photo: "faces/Aaditya_kumar.jpg" },
+      ],
+    },
+  ]);
 
-  const [newName, setNewName] = useState("");
-  const [newRoll, setNewRoll] = useState("");
-  const [newClass, setNewClass] = useState("");
-  const [newPhoto, setNewPhoto] = useState("");
+  const [newClassName, setNewClassName] = useState("");
 
-  // Save to localStorage whenever students change
-  useEffect(() => {
-    localStorage.setItem("students", JSON.stringify(students));
-  }, [students]);
+  // Add new class
+  const addClass = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClassName.trim()) return;
+    setClasses([...classes, { name: newClassName, students: [] }]);
+    setNewClassName("");
+  };
 
-  // Load RGB data lazily
-  useEffect(() => {
-    students.forEach(async (s) => {
-      if (!s.rgbData) {
-        try {
-          const rgb = await fetchImageRGB(s.photoUrl);
-          setStudents((prev) =>
-            prev.map((st) =>
-              st.id === s.id ? { ...st, rgbData: rgb } : st
-            )
-          );
-        } catch (err) {
-          console.error("Failed to load RGB for", s.name, err);
-        }
-      }
-    });
-  }, [students]);
+  // Delete class
+  const deleteClass = (classIndex: number) => {
+    const updated = [...classes];
+    updated.splice(classIndex, 1);
+    setClasses(updated);
+  };
 
-  function addStudent() {
-    if (!newName || !newRoll || !newClass || !newPhoto) {
-      alert("Please fill all fields and photo URL");
-      return;
-    }
+  // Add student
+  const addStudent = (
+    e: React.FormEvent,
+    classIndex: number,
+    name: string,
+    roll: string,
+    photo: string
+  ) => {
+    e.preventDefault();
+    const updated = [...classes];
+    updated[classIndex].students.push({ name, roll, photo });
+    setClasses(updated);
+  };
 
-    const newStudent: Student = {
-      id: Date.now(),
-      name: newName,
-      rollNo: newRoll,
-      className: newClass,
-      photoUrl: newPhoto,
-    };
-
-    setStudents((prev) => [...prev, newStudent]);
-
-    setNewName("");
-    setNewRoll("");
-    setNewClass("");
-    setNewPhoto("");
-  }
+  // Delete student
+  const deleteStudent = (classIndex: number, studentIndex: number) => {
+    const updated = [...classes];
+    updated[classIndex].students.splice(studentIndex, 1);
+    setClasses(updated);
+  };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Teacher Dashboard</h1>
+    <div className="min-h-screen bg-gray-100">
+      <header className="bg-blue-600 text-white text-center p-4">
+        <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
+      </header>
 
-      {/* Add new student form */}
-      <div className="mb-6 p-4 border rounded-lg">
-        <h2 className="font-semibold mb-2">Add New Student</h2>
-        <input
-          type="text"
-          placeholder="Name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          className="border p-2 mr-2"
-        />
-        <input
-          type="text"
-          placeholder="Roll No"
-          value={newRoll}
-          onChange={(e) => setNewRoll(e.target.value)}
-          className="border p-2 mr-2"
-        />
-        <input
-          type="text"
-          placeholder="Class"
-          value={newClass}
-          onChange={(e) => setNewClass(e.target.value)}
-          className="border p-2 mr-2"
-        />
-        <input
-          type="text"
-          placeholder="Photo URL (e.g. /faces/new.jpg)"
-          value={newPhoto}
-          onChange={(e) => setNewPhoto(e.target.value)}
-          className="border p-2 mr-2"
-        />
+      <div className="container mx-auto p-4 max-w-4xl">
+        {/* Add Class Form */}
+        <h2 className="text-lg font-semibold mb-2">Add New Class</h2>
+        <form onSubmit={addClass} className="mb-4 flex gap-2">
+          <input
+            type="text"
+            placeholder="Enter class name"
+            value={newClassName}
+            onChange={(e) => setNewClassName(e.target.value)}
+            className="border px-2 py-1 rounded w-full"
+            required
+          />
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-3 py-1 rounded"
+          >
+            Add Class
+          </button>
+        </form>
+
+        {/* Class Cards */}
+        {classes.map((cls, classIndex) => (
+          <div
+            key={classIndex}
+            className="bg-white rounded-lg shadow p-4 mb-4"
+          >
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-xl font-semibold">{cls.name}</h3>
+              <button
+                onClick={() => deleteClass(classIndex)}
+                className="bg-red-500 text-white px-2 py-1 rounded"
+              >
+                Delete Class
+              </button>
+            </div>
+
+            {/* Students */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
+              {cls.students.map((s, studentIndex) => (
+                <div
+                  key={studentIndex}
+                  className="border rounded p-2 text-center"
+                >
+                  <img
+                    src={s.photo}
+                    alt={s.name}
+                    className="w-20 h-20 object-cover rounded-full mx-auto mb-2"
+                  />
+                  <p className="font-bold">{s.name}</p>
+                  <p className="text-sm text-gray-600">Roll: {s.roll}</p>
+                  <button
+                    onClick={() => deleteStudent(classIndex, studentIndex)}
+                    className="bg-red-500 text-white px-2 py-1 mt-2 rounded"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add Student Form */}
+            <AddStudentForm
+              onAdd={(name, roll, photo) =>
+                addStudent(event as any, classIndex, name, roll, photo)
+              }
+            />
+          </div>
+        ))}
+
+        {/* Attendance Button */}
         <button
-          onClick={addStudent}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg"
+          onClick={() => (window.location.href = "attendance.tsx")}
+          className="bg-green-600 text-white px-4 py-2 rounded"
         >
-          Add Student
+          Go to Attendance
         </button>
       </div>
-
-      {/* Student table */}
-      <table className="w-full border">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="p-2 border">Photo</th>
-            <th className="p-2 border">Name</th>
-            <th className="p-2 border">Roll No</th>
-            <th className="p-2 border">Class</th>
-            <th className="p-2 border">RGB Loaded?</th>
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((s) => (
-            <tr key={s.id} className="text-center">
-              <td className="p-2 border">
-                <img
-                  src={s.photoUrl}
-                  alt={s.name}
-                  className="w-16 h-16 object-cover rounded-full mx-auto"
-                />
-              </td>
-              <td className="p-2 border">{s.name}</td>
-              <td className="p-2 border">{s.rollNo}</td>
-              <td className="p-2 border">{s.className}</td>
-              <td className="p-2 border">
-                {s.rgbData ? "✅ Yes" : "⏳ Loading..."}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <button
-        className="mt-6 px-4 py-2 bg-blue-500 text-white rounded-lg"
-        onClick={() => (window.location.href = "/attendance")}
-      >
-        Go to Attendance System
-      </button>
     </div>
   );
-}
+};
+
+// Sub-component for adding students
+const AddStudentForm: React.FC<{
+  onAdd: (name: string, roll: string, photo: string) => void;
+}> = ({ onAdd }) => {
+  const [name, setName] = useState("");
+  const [roll, setRoll] = useState("");
+  const [photo, setPhoto] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !roll || !photo) return;
+    onAdd(name, roll, photo);
+    setName("");
+    setRoll("");
+    setPhoto("");
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
+      <input
+        type="text"
+        placeholder="Name"
+        className="border px-2 py-1 rounded"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+      />
+      <input
+        type="text"
+        placeholder="Roll No"
+        className="border px-2 py-1 rounded"
+        value={roll}
+        onChange={(e) => setRoll(e.target.value)}
+        required
+      />
+      <input
+        type="text"
+        placeholder="Photo path"
+        className="border px-2 py-1 rounded"
+        value={photo}
+        onChange={(e) => setPhoto(e.target.value)}
+        required
+      />
+      <button
+        type="submit"
+        className="bg-blue-600 text-white px-3 py-1 rounded"
+      >
+        Add Student
+      </button>
+    </form>
+  );
+};
+
+export default TeacherDashboard;
