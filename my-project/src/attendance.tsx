@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
 
-export default function Attendance() {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+// ✅ Type for one student’s attendance record
+type AttendanceRecord = { status: "present"; timestamp: Date };
+// ✅ Attendance state keyed by student name
+type AttendanceState = Record<string, AttendanceRecord | undefined>;
 
-  const [attendance, setAttendance] = useState({});
+export default function Attendance() {
+  // properly typed refs
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // ✅ Attendance state typed
+  const [attendance, setAttendance] = useState<AttendanceState>({});
   const [loadingMessage, setLoadingMessage] = useState("Initializing Webcam...");
   const [error, setError] = useState(false);
 
@@ -32,7 +39,9 @@ export default function Attendance() {
 
         setLoadingMessage("Starting Webcam...");
         const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+          (videoRef.current as HTMLVideoElement).srcObject = stream;
+        }
       } catch (err) {
         console.error("Initialization Error:", err);
         setError(true);
@@ -42,88 +51,137 @@ export default function Attendance() {
   }, []);
 
   // Load student images
-  async function getLabeledFaceDescriptions() {
+  async function getLabeledFaceDescriptions(): Promise<
+    faceapi.LabeledFaceDescriptors[]
+  > {
     setLoadingMessage("Learning Student Faces...");
-    return Promise.all(
+    const results = await Promise.all(
       STUDENTS.map(async (student) => {
         try {
           const img = await faceapi.fetchImage(student.image);
-          const detections = await faceapi
+          const detection = await faceapi
             .detectSingleFace(img)
             .withFaceLandmarks()
             .withFaceDescriptor();
 
-          if (!detections) {
+          if (!detection) {
             console.warn(`No face found for ${student.name}`);
             return null;
           }
           return new faceapi.LabeledFaceDescriptors(student.name, [
-            detections.descriptor,
+            detection.descriptor,
           ]);
         } catch (e) {
           console.error(`Error loading ${student.name}`, e);
           return null;
         }
       })
-    ).then((descs) => descs.filter((d) => d !== null));
+    );
+    return results.filter(
+      (r): r is faceapi.LabeledFaceDescriptors => r !== null
+    );
   }
 
   // Face detection loop
+  const intervalRef = useRef<number | null>(null);
+
   useEffect(() => {
-    if (!videoRef.current) return;
+    const videoEl = videoRef.current;
+    const canvasEl = canvasRef.current;
 
-    let interval;
-    videoRef.current.addEventListener("play", async () => {
-      const labeledFaceDescriptors = await getLabeledFaceDescriptions();
-      if (!labeledFaceDescriptors || labeledFaceDescriptors.length === 0) {
-        setLoadingMessage("Error: No student faces learned.");
-        return;
-      }
+    if (!videoEl || !canvasEl) return;
 
-      const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
+    let mounted = true;
 
-      setLoadingMessage("Ready!");
-      const displaySize = {
-        width: videoRef.current.videoWidth,
-        height: videoRef.current.videoHeight,
-      };
-      faceapi.matchDimensions(canvasRef.current, displaySize);
+    const onPlay = async () => {
+      try {
+        const labeledFaceDescriptors = await getLabeledFaceDescriptions();
 
-      interval = setInterval(async () => {
-        const detections = await faceapi
-          .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks()
-          .withFaceDescriptors();
+        if (!mounted) return;
 
-        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        if (!labeledFaceDescriptors || labeledFaceDescriptors.length === 0) {
+          setLoadingMessage("Error: No student faces learned.");
+          return;
+        }
 
-        const ctx = canvasRef.current.getContext("2d");
-        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
 
-        const results = resizedDetections.map((d) =>
-          faceMatcher.findBestMatch(d.descriptor)
-        );
+        setLoadingMessage("Ready!");
 
-        results.forEach((result, i) => {
-          const box = resizedDetections[i].detection.box;
-          new faceapi.draw.DrawBox(box, { label: result.toString() }).draw(
-            canvasRef.current
+        const displaySize = {
+          width: videoEl.videoWidth || videoEl.clientWidth,
+          height: videoEl.videoHeight || videoEl.clientHeight,
+        };
+
+        canvasEl.width = displaySize.width;
+        canvasEl.height = displaySize.height;
+
+        faceapi.matchDimensions(canvasEl, displaySize);
+
+        if (intervalRef.current) {
+          window.clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+
+        intervalRef.current = window.setInterval(async () => {
+          if (!videoEl || videoEl.paused || videoEl.ended) return;
+
+          const detections = await faceapi
+            .detectAllFaces(
+              videoEl,
+              new faceapi.TinyFaceDetectorOptions()
+            )
+            .withFaceLandmarks()
+            .withFaceDescriptors();
+
+          const resizedDetections = faceapi.resizeResults(
+            detections,
+            displaySize
           );
 
-          const studentName = result.label;
-          if (studentName !== "unknown" && attendance[studentName]?.status !== "present") {
-            const now = new Date();
-            setAttendance((prev) => ({
-              ...prev,
-              [studentName]: { status: "present", timestamp: now },
-            }));
-          }
-        });
-      }, 200);
-    });
+          const ctx = canvasEl.getContext("2d");
+          if (!ctx) return;
+          ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
 
-    return () => clearInterval(interval);
-  }, [videoRef.current]);
+          const results = resizedDetections.map((d) =>
+            faceMatcher.findBestMatch(d.descriptor)
+          );
+
+          results.forEach((result, i) => {
+            const box = resizedDetections[i].detection.box;
+            new faceapi.draw.DrawBox(box, { label: result.toString() }).draw(
+              canvasEl
+            );
+
+            const studentName = result.label;
+            if (
+              studentName !== "unknown" &&
+              attendance[studentName]?.status !== "present"
+            ) {
+              const now = new Date();
+              setAttendance((prev) => ({
+                ...prev,
+                [studentName]: { status: "present", timestamp: now },
+              }));
+            }
+          });
+        }, 200);
+      } catch (e) {
+        console.error("Error during play handler:", e);
+      }
+    };
+
+    videoEl.addEventListener("play", onPlay);
+
+    return () => {
+      mounted = false;
+      videoEl.removeEventListener("play", onPlay);
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [videoRef.current, canvasRef.current]);
 
   // Download attendance as CSV
   function downloadAttendanceReport() {
@@ -143,6 +201,7 @@ export default function Attendance() {
     link.href = url;
     link.download = "attendance_report.csv";
     link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   return (
@@ -214,7 +273,7 @@ export default function Attendance() {
                           : "text-gray-400"
                       }`}
                     >
-                      {status === "present"
+                      {status === "present" && record?.timestamp
                         ? `Present at ${record.timestamp.toLocaleTimeString()}`
                         : "Absent"}
                     </span>
