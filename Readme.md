@@ -17,6 +17,6 @@ This README provides an overview of the project, including team details, relevan
 - **Bharat** - 2024UEE4092 - [@Bharat4197](https://github.com/Bharat4197)
 
 ## Project Links
-- **SIH Presentation:** [Final SIH Presentation] (https://www.canva.com/design/DAGzQTE5QS4/b0JHgWo-tZtE_oneZiiXiQ/edit)
-- **Video Demonstration:** [Watch Video](youtube.com/video/bRpD05BMNv4)
+- **SIH Presentation:** [Final SIH Presentation](https://www.canva.com/design/DAGzQTE5QS4/b0JHgWo-tZtE_oneZiiXiQ/edit)
+- **Video Demonstration:** [Watch Video](https://www.youtube.com/video/bRpD05BMNv4)
 - **Source Code:** [View Deployment](https://github.com/Fire-furo/Sih)
