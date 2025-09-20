@@ -19,4 +19,4 @@ This README provides an overview of the project, including team details, relevan
 ## Project Links
 - **SIH Presentation:** [Final SIH Presentation](https://www.canva.com/design/DAGzQTE5QS4/b0JHgWo-tZtE_oneZiiXiQ/edit)
 - **Video Demonstration:** [Watch Video](https://www.youtube.com/video/bRpD05BMNv4)
-- **Source Code:** [View Deployment](https://github.com/Fire-furo/Sih)
+- **Source Code:** [View Deployment](https://github.com/Fire-furo/Sih/tree/master/code)
